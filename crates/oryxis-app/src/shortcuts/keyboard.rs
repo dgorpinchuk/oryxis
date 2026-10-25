@@ -13,6 +13,92 @@ use crate::app::{SftpMessage, SettingsMessage, TabsMessage, EditorMessage, KeysM
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
+
+/// Resolve Command+letter using the US-position physical key when the active
+/// input layout produces a non-ASCII character (e.g. Russian-PC on macOS).
+/// ASCII layouts retain their logical key, and non-Command/terminal Ctrl
+/// sequences are never changed.
+pub(crate) fn command_shortcut_key(
+    key: &Key,
+    physical: &iced::keyboard::key::Physical,
+    modifiers: &Modifiers,
+) -> Key {
+    use iced::keyboard::key::{Code, Physical};
+    if !cfg!(target_os = "macos") || !modifiers.logo() {
+        return key.clone();
+    }
+    if !matches!(key, Key::Character(s) if !s.is_ascii()) {
+        return key.clone();
+    }
+    let Physical::Code(code) = physical else {
+        return key.clone();
+    };
+    let letter = match code {
+        Code::KeyA => 'a',
+        Code::KeyB => 'b',
+        Code::KeyC => 'c',
+        Code::KeyD => 'd',
+        Code::KeyE => 'e',
+        Code::KeyF => 'f',
+        Code::KeyG => 'g',
+        Code::KeyH => 'h',
+        Code::KeyI => 'i',
+        Code::KeyJ => 'j',
+        Code::KeyK => 'k',
+        Code::KeyL => 'l',
+        Code::KeyM => 'm',
+        Code::KeyN => 'n',
+        Code::KeyO => 'o',
+        Code::KeyP => 'p',
+        Code::KeyQ => 'q',
+        Code::KeyR => 'r',
+        Code::KeyS => 's',
+        Code::KeyT => 't',
+        Code::KeyU => 'u',
+        Code::KeyV => 'v',
+        Code::KeyW => 'w',
+        Code::KeyX => 'x',
+        Code::KeyY => 'y',
+        Code::KeyZ => 'z',
+        _ => return key.clone(),
+    };
+    Key::Character(letter.to_string().into())
+}
+
+#[cfg(test)]
+mod command_layout_tests {
+    use super::*;
+    use iced::keyboard::key::{Code, Physical};
+
+    #[test]
+    fn command_shortcut_preserves_ctrl_and_ascii() {
+        let russian = Key::Character("с".into());
+        let physical = Physical::Code(Code::KeyC);
+        assert_eq!(command_shortcut_key(&russian, &physical, &Modifiers::CTRL), russian);
+        let ascii = Key::Character("c".into());
+        assert_eq!(command_shortcut_key(&ascii, &physical, &Modifiers::LOGO), ascii);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn russian_pc_command_shortcuts_use_physical_letters() {
+        for (logical, code, expected) in [
+            ("с", Code::KeyC, "c"),
+            ("м", Code::KeyV, "v"),
+            ("ф", Code::KeyA, "a"),
+        ] {
+            assert_eq!(
+                command_shortcut_key(
+                    &Key::Character(logical.into()),
+                    &Physical::Code(code),
+                    &Modifiers::LOGO,
+                ),
+                Key::Character(expected.into()),
+            );
+        }
+    }
+}
+
 /// The tab the current window's strip has in front, as an index into
 /// its storage vec. What the unbound tab verbs (`RenameTab`,
 /// `ToggleTabPin`, `CloseOtherTabs`, `MoveTabToNewWindow`) act on.
@@ -999,4 +1085,3 @@ impl Oryxis {
         self.set_vault_hotkey(vault, Some(binding))
     }
 }
-

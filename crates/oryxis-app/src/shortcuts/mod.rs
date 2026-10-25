@@ -15,6 +15,7 @@ mod targets;
 mod modals;
 mod process;
 mod keyboard;
+pub(crate) use keyboard::command_shortcut_key;
 mod mouse;
 
 use iced::Task;

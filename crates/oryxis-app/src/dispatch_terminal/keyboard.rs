@@ -367,10 +367,13 @@ impl Oryxis {
                 // event was consumed by a binding (or by the Settings
                 // editor's capture mode), `None` to fall through to
                 // the legacy PTY-routing block below.
-                if let keyboard::Event::KeyPressed { key, modifiers, .. } = &event
-                    && let Some(task) = self.handle_hotkey_keypress(key, modifiers)
-                {
-                    return Ok(task);
+                if let keyboard::Event::KeyPressed { key, physical_key, modifiers, .. } = &event {
+                    let shortcut_key = crate::shortcuts::command_shortcut_key(
+                        key, physical_key, modifiers,
+                    );
+                    if let Some(task) = self.handle_hotkey_keypress(&shortcut_key, modifiers) {
+                        return Ok(task);
+                    }
                 }
                 // When the sidebar is open and the cursor is over it, the
                 // user is interacting with its widgets (chat textarea,
