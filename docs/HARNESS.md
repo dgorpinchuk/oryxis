@@ -117,6 +117,7 @@ Any `.ice` instruction works as a command:
 | `type "some text"` | typewrite into the focused widget |
 | `type enter` / `escape` / `tab` / `backspace` | named keys (`press enter` / `release tab` for the halves) |
 | `type ctrl+k` / `type ctrl+shift+f` / `type alt+enter` | modifier chords; reach the app's global hotkeys |
+| `type ctrl+shift+с@keyc` | a chord whose character the layout types outside ASCII, named with the key's position (W3C `code`, lowercased: `keya`..`keyz`, `digit0`..`digit9`, `comma`, `bracketleft`, ...); the event carries both, as a real press under a Russian layout does |
 | `expect "Text"` | fail unless a widget currently shows `Text` |
 
 Plus harness meta-commands:
