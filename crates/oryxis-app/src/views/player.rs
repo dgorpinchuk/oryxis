@@ -26,7 +26,7 @@ use crate::theme::OryxisColors;
 /// highlight and hand the text to a backend that has no PTY, so that one
 /// chord is declined instead of half-working.
 fn replay_chords(base: ChordResolver) -> ChordResolver {
-    Box::new(move |key, modifiers| match base(key, modifiers) {
+    Box::new(move |event| match base(event) {
         Some(TerminalChordAction::PasteSelection) => None,
         other => other,
     })

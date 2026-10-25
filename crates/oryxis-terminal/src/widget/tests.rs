@@ -1067,7 +1067,7 @@
         let (view, mut ws, term) = view_state_and_term();
         let view = view
             .focused(false)
-            .with_terminal_chords(Box::new(|_, _| Some(TerminalChordAction::SelectAll)))
+            .with_terminal_chords(Box::new(|_| Some(TerminalChordAction::SelectAll)))
             .with_chords_unfocused(true);
         view.on_event(
             &mut ws,
@@ -1087,7 +1087,7 @@
         let (view, mut ws, term) = view_state_and_term();
         let view = view
             .focused(false)
-            .with_terminal_chords(Box::new(|_, _| Some(TerminalChordAction::SelectAll)));
+            .with_terminal_chords(Box::new(|_| Some(TerminalChordAction::SelectAll)));
         view.on_event(
             &mut ws,
             &key_press(keyboard::Key::Character("a".into())),

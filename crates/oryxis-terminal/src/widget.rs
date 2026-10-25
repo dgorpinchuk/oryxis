@@ -510,8 +510,12 @@ pub enum TerminalChordAction {
 /// The app owns the binding model (chords are user-editable), so it
 /// hands the matcher down as a closure rather than teaching this crate
 /// about actions and bindings. That keeps ONE implementation of chord
-/// matching: a copy of it here would drift from the editor's.
-pub type ChordResolver = Box<dyn Fn(&keyboard::Key, &keyboard::Modifiers) -> Option<TerminalChordAction>>;
+/// matching: a copy of it here would drift from the editor's. It takes
+/// the whole `KeyPressed` event because the app reads more of it than
+/// the key: the physical key decides what a chord is under a layout
+/// that types another script, the same way the app's own router reads
+/// it. An event that is not a `KeyPressed` resolves to `None`.
+pub type ChordResolver = Box<dyn Fn(&keyboard::Event) -> Option<TerminalChordAction>>;
 
 /// What a bound mouse button does when it is pressed over the canvas.
 ///

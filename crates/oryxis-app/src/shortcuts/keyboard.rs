@@ -999,4 +999,3 @@ impl Oryxis {
         self.set_vault_hotkey(vault, Some(binding))
     }
 }
-

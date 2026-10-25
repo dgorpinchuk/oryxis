@@ -533,7 +533,18 @@ impl Oryxis {
         let select_all = get(TerminalSelectAll);
         let page_up = get(ScrollbackPageUp);
         let page_down = get(ScrollbackPageDown);
-        Box::new(move |key, mods| {
+        Box::new(move |event| {
+            let iced::keyboard::Event::KeyPressed { key, physical_key, modifiers: mods, .. } = event
+            else {
+                return None;
+            };
+            // The same key the router matches: the layout's character
+            // when it is ASCII, the US position's when the layout types
+            // another script (PR #270). The two matchers have to agree:
+            // the router's `TerminalCopy` arm only swallows the press on
+            // the widget's behalf, so a copy chord this matcher declines
+            // is consumed and performed by nobody.
+            let key = &crate::hotkeys::chord_key(key, physical_key, mods);
             // Mirror the router's terminal gate: a chord that is a bare
             // control sequence (a user rebinding Copy to Ctrl+C, say)
             // must reach the PTY as its control byte, NOT trigger the

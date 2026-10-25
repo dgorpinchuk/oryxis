@@ -811,13 +811,14 @@ impl Oryxis {
                 // extension walks). Anchored on the first entry so a
                 // follow-up shift-click keeps well-defined semantics.
                 if !editing
-                    && let iced::keyboard::Event::KeyPressed {
-                        key: iced::keyboard::Key::Character(s),
-                        modifiers,
-                        ..
-                    } = &ke
+                    && let iced::keyboard::Event::KeyPressed { key, physical_key, modifiers, .. } = &ke
                     && (modifiers.control() || modifiers.command())
                     && !modifiers.alt()
+                    // The key the hotkey table would match: the US
+                    // position's character where the layout types
+                    // another script (PR #270).
+                    && let iced::keyboard::Key::Character(s) =
+                        crate::hotkeys::chord_key(key, physical_key, modifiers)
                     && s.as_str() == "a"
                 {
                     let side = self.cur_sftp().focused_side;

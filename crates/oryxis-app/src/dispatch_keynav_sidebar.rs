@@ -286,9 +286,13 @@ impl Oryxis {
         if self.any_modal_blocks_input() || self.host_editor_visible() {
             return None;
         }
-        let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
+        let keyboard::Event::KeyPressed { key, physical_key, modifiers, .. } = event else {
             return None;
         };
+        // The Ctrl+F / Ctrl+A arms below match the key the hotkey table
+        // would: the US position's character where the layout types
+        // another script (PR #270). A named key reads the same.
+        let key = &crate::hotkeys::chord_key(key, physical_key, modifiers);
         let len = self.sidebar_items_for(tab).borrow().len();
         // Selection engaged on the visible tab, clamped against this
         // frame's recording (a search filter can shrink it).

@@ -23,6 +23,15 @@
 //!   [`OptionAsMeta`](oryxis_core::models::terminal_quirks::OptionAsMeta)
 //!   quirk; the default composes, matching every macOS terminal.
 //!
+//! The control byte is the layout's, when the layout has one. `key` is the
+//! character the active layout types, so under a Russian layout the key
+//! labelled C reads `с`, which has no C0 form: Ctrl+C sent nothing. The
+//! Ctrl paths read the key through [`crate::hotkeys::chord_key`] (the
+//! layout's character when it is ASCII, the US position's otherwise),
+//! which is what xterm, kitty and Windows Terminal send for Ctrl+с, and
+//! the same answer the hotkey table matches a chord by. Meta is NOT read
+//! that way: Alt+с stays `ESC с`, the character the user typed.
+//!
 //! Application-keypad mode (DECPAM, `ESC =`) is a deliberate non-goal:
 //! the numpad always sends what it types (digits, operators, and CR for
 //! its Enter). xterm's SS3 keypad forms (`ESC O q` for 1, `ESC O M` for
@@ -74,6 +83,9 @@ pub(crate) struct KeyPress<'a> {
     /// winit `text_with_all_modifiers`: the OS-composed input text.
     pub text: Option<&'a str>,
     pub location: keyboard::Location,
+    /// The key's position, read only to find the control byte of a
+    /// character the layout types outside ASCII.
+    pub physical_key: keyboard::key::Physical,
 }
 
 /// The printable text this press composed, if any. `text` is authoritative
@@ -122,6 +134,10 @@ pub(crate) fn pty_bytes(
         _ => true,
     };
     let named_mods = named_key_modifiers(press.key, mods, alt_is_meta);
+    // The key a Ctrl byte is taken from: `key` itself on a Latin layout,
+    // the US position's character where the layout types another script
+    // (see the module doc). Named keys and typing are untouched by it.
+    let chord = crate::hotkeys::chord_key(press.key, &press.physical_key, &mods);
 
     // macOS: Cmd is the platform's shortcut modifier; every unregistered
     // Cmd combo is swallowed so it never leaks into the PTY as text
@@ -146,7 +162,7 @@ pub(crate) fn pty_bytes(
                 return Some(t.into_bytes());
             }
         }
-        if let Some(ctrl) = ctrl_key_bytes(press.key) {
+        if let Some(ctrl) = ctrl_key_bytes(&chord) {
             let mut esc = Vec::with_capacity(ctrl.len() + 1);
             esc.push(0x1b);
             esc.extend_from_slice(&ctrl);
@@ -201,7 +217,7 @@ pub(crate) fn pty_bytes(
     // Ctrl+Home, Ctrl+Space = NUL) folds the modifier in the named
     // encoding.
     if mods.control() {
-        if let Some(ctrl) = ctrl_key_bytes(press.key) {
+        if let Some(ctrl) = ctrl_key_bytes(&chord) {
             return Some(ctrl);
         }
         return key_to_named_bytes(press.key, &named_mods, app_cursor, quirks);
@@ -491,7 +507,7 @@ pub(crate) fn ctrl_key_bytes(key: &keyboard::Key) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iced::keyboard::key::Named;
+    use iced::keyboard::key::{Code, Named, NativeCode, Physical};
     use iced::keyboard::{Key, Location, Modifiers};
     use oryxis_core::models::terminal_quirks::{
         BackspaceMode, FunctionKeyMode, HomeEndMode, OptionAsMeta, TerminalQuirks, DEFAULT_QUIRKS,
@@ -517,6 +533,7 @@ mod tests {
         mods: Modifiers,
         text: Option<&'static str>,
         location: Location,
+        physical: Physical,
     }
 
     impl Press {
@@ -527,6 +544,7 @@ mod tests {
                 mods: Modifiers::empty(),
                 text: Some(base),
                 location: Location::Standard,
+                physical: Physical::Unidentified(NativeCode::Unidentified),
             }
         }
         fn named(named: Named) -> Self {
@@ -536,10 +554,18 @@ mod tests {
                 mods: Modifiers::empty(),
                 text: None,
                 location: Location::Standard,
+                physical: Physical::Unidentified(NativeCode::Unidentified),
             }
         }
         fn mods(mut self, mods: Modifiers) -> Self {
             self.mods = mods;
+            self
+        }
+        /// The key's position, for a character the layout types outside
+        /// ASCII (the builders above leave it unidentified, as the
+        /// emulator does).
+        fn at(mut self, code: Code) -> Self {
+            self.physical = Physical::Code(code);
             self
         }
         fn composes(mut self, s: &'static str) -> Self {
@@ -563,6 +589,7 @@ mod tests {
                     modifiers: self.mods,
                     text: self.text,
                     location: self.location,
+                    physical_key: self.physical,
                 },
                 platform,
                 false,
@@ -696,6 +723,42 @@ mod tests {
     fn ctrl_letter_is_the_control_byte() {
         let p = Press::ch("u").text(Some("\u{15}")).mods(Modifiers::CTRL);
         assert_eq!(p.on(Platform::Linux).unwrap(), vec![0x15]);
+    }
+
+    // ── a layout that types another script (PR #270) ──────────────────
+
+    /// Russian: the key labelled C types `с`, whose first byte is no C0
+    /// form, so Ctrl+C used to write nothing. The position gives the byte,
+    /// as xterm, kitty and Windows Terminal send it. Ctrl+Alt on Linux is
+    /// the ESC-prefixed form of the same byte; the punctuation keys
+    /// (Ctrl+[ is the shell's Escape, `х` under Russian) follow.
+    #[test]
+    fn ctrl_on_a_non_latin_layout_takes_the_byte_from_the_position() {
+        let p = Press::ch("с").text(Some("с")).mods(Modifiers::CTRL).at(Code::KeyC);
+        for platform in [Platform::Linux, Platform::Windows, Platform::MacOs] {
+            assert_eq!(p.on(platform).unwrap(), vec![0x03], "{platform:?}");
+        }
+        let p = Press::ch("с").text(None).mods(CTRL_ALT).at(Code::KeyC);
+        assert_eq!(p.on(Platform::Linux).unwrap(), vec![0x1b, 0x03]);
+        let p = Press::ch("х").text(Some("х")).mods(Modifiers::CTRL).at(Code::BracketLeft);
+        assert_eq!(p.on(Platform::Linux).unwrap(), vec![0x1b]);
+    }
+
+    /// Without a position (the emulator, an unidentified key) there is
+    /// nothing to take the byte from: the press writes nothing, as
+    /// before, rather than the UTF-8 of `с`.
+    #[test]
+    fn ctrl_on_a_non_latin_layout_without_a_position_writes_nothing() {
+        let p = Press::ch("с").text(Some("с")).mods(Modifiers::CTRL);
+        assert_eq!(p.on(Platform::Linux), None);
+    }
+
+    /// Meta is the character the user typed: Alt+с is `ESC с` (what
+    /// xterm sends), never `ESC c`. Only the Ctrl byte reads the position.
+    #[test]
+    fn alt_on_a_non_latin_layout_sends_the_typed_character() {
+        let p = Press::ch("с").mods(Modifiers::ALT).at(Code::KeyC);
+        assert_eq!(p.on(Platform::Linux).unwrap(), "\x1bс".as_bytes());
     }
 
     #[test]

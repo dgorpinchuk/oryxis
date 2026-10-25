@@ -16,12 +16,14 @@
 //!
 //! - [`action`]: the catalog of bindable actions and their rules.
 //! - [`binding`]: keys, mouse buttons, modifiers, parsing, matching.
+//! - [`chord_key`]: the key a chord is matched by under any layout.
 //! - [`defaults`]: the factory table and the per-action binding list.
 //! - [`layout`]: a whole set at once (presets, the shortcuts file).
 //! - [`presets`]: other terminals' keymaps, measured.
 
 mod action;
 mod binding;
+mod chord_key;
 mod defaults;
 pub mod layout;
 mod presets;
@@ -31,5 +33,6 @@ pub use binding::{
     binding_from_event, binding_from_mouse, binding_from_wheel, middle_click_chord,
     wheel_zoom_chord, FamilyMatch, HotkeyBinding, MouseButton, PrimaryKey, WheelDirection,
 };
+pub use chord_key::chord_key;
 pub use defaults::{default_bindings, HotkeyBindings, HotkeyMap, HotkeySlot};
 pub use presets::ShortcutPreset;
