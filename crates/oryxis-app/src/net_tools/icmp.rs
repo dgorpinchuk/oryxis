@@ -25,7 +25,11 @@
 //! Packet building and reading are pure functions over bytes, tested
 //! without a network; the unsafe is confined to the send / receive.
 
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::IpAddr;
+// Read by the Linux and Windows probes and by the tests; the other
+// platforms answer `Unavailable::Platform` before an address is parsed.
+#[cfg(any(test, target_os = "linux", target_os = "windows"))]
+use std::net::Ipv4Addr;
 use std::time::Duration;
 
 // The packet vocabulary belongs to the platforms that build echo
@@ -63,8 +67,12 @@ pub(crate) enum Unavailable {
     Failed(String),
 }
 
-/// What one probe got back.
+/// What one probe got back. Only the Linux and Windows probes build
+/// one; elsewhere the walk stops at `Unavailable::Platform`, so the
+/// variants are read but never constructed and `-D warnings` on a
+/// macOS build would refuse the enum without the allowance.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(not(any(test, target_os = "linux", target_os = "windows")), allow(dead_code))]
 pub(crate) enum Outcome {
     /// The target itself answered: an echo reply.
     Reply { from: IpAddr, rtt_ms: f32 },
