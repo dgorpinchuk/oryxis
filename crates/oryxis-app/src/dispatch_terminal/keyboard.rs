@@ -367,11 +367,16 @@ impl Oryxis {
                 // event was consumed by a binding (or by the Settings
                 // editor's capture mode), `None` to fall through to
                 // the legacy PTY-routing block below.
+                //
+                // The table, the recorders and every chord below read
+                // the key through `hotkeys::chord_key`: the layout's
+                // character when it is ASCII, the US position's when
+                // the layout types another script (PR #270: under
+                // Russian the key labelled C reads `с`, and no chord
+                // on it matched). Typing is left alone there.
                 if let keyboard::Event::KeyPressed { key, physical_key, modifiers, .. } = &event {
-                    let shortcut_key = crate::shortcuts::command_shortcut_key(
-                        key, physical_key, modifiers,
-                    );
-                    if let Some(task) = self.handle_hotkey_keypress(&shortcut_key, modifiers) {
+                    let key = crate::hotkeys::chord_key(key, physical_key, modifiers);
+                    if let Some(task) = self.handle_hotkey_keypress(&key, modifiers) {
                         return Ok(task);
                     }
                 }
@@ -413,6 +418,7 @@ impl Oryxis {
                     && let keyboard::Event::KeyPressed {
                         key,
                         modified_key,
+                        physical_key,
                         modifiers,
                         text: text_opt,
                         location,
@@ -450,7 +456,8 @@ impl Oryxis {
                         if modifiers.control()
                             && !modifiers.alt()
                             && !modifiers.shift()
-                            && let keyboard::Key::Character(ref c) = key
+                            && let keyboard::Key::Character(c) =
+                                crate::hotkeys::chord_key(&key, &physical_key, &modifiers)
                             && c.as_str().eq_ignore_ascii_case("d")
                             && self
                                 .tabs
@@ -471,6 +478,7 @@ impl Oryxis {
                             modifiers,
                             text: text_opt.as_deref(),
                             location,
+                            physical_key,
                         };
                         let bytes = crate::key_encode::pty_bytes(
                             &press,

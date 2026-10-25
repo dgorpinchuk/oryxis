@@ -716,17 +716,17 @@ where
             // reset-scrollback-on-keypress. Landing there would wipe the
             // selection out from under a copy, and snap the view straight
             // back to the live edge after a page-up.
-            iced::Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. })
+            iced::Event::Keyboard(press @ keyboard::Event::KeyPressed { .. })
                 if (self.focused || self.chords_unfocused)
                     && self
                         .chords
                         .as_ref()
-                        .and_then(|f| f(key, modifiers))
+                        .and_then(|f| f(press))
                         .is_some() =>
             {
                 // Re-resolve without unwrapping: the guard above already
                 // proved this is Some, so the `?` never fires.
-                let action = self.chords.as_ref().and_then(|f| f(key, modifiers))?;
+                let action = self.chords.as_ref().and_then(|f| f(press))?;
                 return self.perform_chord_action(action, widget_state);
             }
             // Any other key press dismisses a live selection, matching
